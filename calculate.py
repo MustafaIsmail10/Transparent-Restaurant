@@ -16,7 +16,7 @@ def qualityCalculator(meal, body):
         else:
             qualityScore += 30
     quality = qualityScore / ingNum
-    return quality
+    return round(quality, 2)
 
 
 def priceCalulator(database, meal, body):
@@ -45,7 +45,7 @@ def priceCalulator(database, meal, body):
         else:
             total_price += (ing["quantity"] / 1000) * ingOptions[0]["price"]
 
-    return total_price
+    return round(total_price, 2)
 
 
 def calculateCostsOfIngredient(ing, database):

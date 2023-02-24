@@ -214,6 +214,28 @@ def randomHandler(data):
     return result
 
 
+def search(data):
+    if data["params"] == "":
+        raise Exception()
+    ans = []
+    if "query" in data["params"]:
+        search_term = data["params"]["query"].lower()
+        for meal in database["meals"]:
+            if search_term in meal["name"].lower():
+                search_result = {
+                    "id": meal["id"],
+                    "name": meal["name"],
+                    "ingredients": [ing["name"] for ing in meal["ingredients"]],
+                }
+                ans.append(search_result)
+
+        body = json.dumps(ans, indent=2) + "\n"
+        result = (len(body), body)
+        return result
+    else:
+        raise Exception
+
+
 # Avilable url patterns
 urlpatterns = {
     "/listMeals": listMealsHandler,
@@ -221,6 +243,7 @@ urlpatterns = {
     "/quality": qualityCaculationHandler,
     "/price": priceCaculationHandler,
     "/random": randomHandler,
+    "/search": search,
 }
 
 # parsing the requsts and returning the important data in a dictionary
