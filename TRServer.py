@@ -207,7 +207,7 @@ def randomHandler(data):
         ans["price"] = price
         ans["quality_score"] = qualityCalculator(meal, options)
 
-        ans["ingredients"] = options
+        ans["ingredients"] = [{"name": op, "quality": options[op]} for op in options]
 
     body = json.dumps(ans, indent=2) + "\n"
     result = (len(body), body)
