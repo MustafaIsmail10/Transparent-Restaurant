@@ -1,5 +1,7 @@
 import socket, sys, json
 from exceptions import *
+import random
+from calculate import *
 
 # Getting and parsing the data base
 file_path = "data.json"
@@ -8,6 +10,7 @@ if len(sys.argv) == 2:
 
 data_exist = False
 database = {}
+
 while not data_exist:
     try:
         data_file = open(file_path)
@@ -126,24 +129,6 @@ def getMealHandler(data):
     return result
 
 
-def qualityCalculator(meal, body):
-    qualityScore = 0
-    ingNum = 0
-    for ing in meal["ingredients"]:
-        ingNum += 1
-        if ing["name"].lower() in body:
-            if body[ing["name"].lower()] == "medium":
-                qualityScore += 20
-            elif body[ing["name"].lower()] == "low":
-                qualityScore += 10
-            else:
-                qualityScore += 30
-        else:
-            qualityScore += 30
-    quality = qualityScore / ingNum
-    return quality
-
-
 def qualityCaculationHandler(data):
     if data["body"] == "":
         raise RequiredParametersNotAvialble("Id is required for this operation")
@@ -157,39 +142,73 @@ def qualityCaculationHandler(data):
     return result
 
 
-def priceCalulator(meal, body):
-    total_price = 0
-    for ing in meal["ingredients"]:
-        ingOptions = [
-            ingOption
-            for ingOption in database["ingredients"]
-            if ing["name"] == ingOption["name"]
-        ][0]["options"]
-
-        if ing["name"].lower() in body:
-
-            if body[ing["name"].lower()] == "medium":
-                total_price += 0.05
-                total_price += (ing["quantity"] / 1000) * ingOptions[1]["price"]
-            elif body[ing["name"].lower()] == "low":
-                total_price += 0.1
-                total_price += (ing["quantity"] / 1000) * ingOptions[2]["price"]
-            else:
-                total_price += (ing["quantity"] / 1000) * ingOptions[0]["price"]
-        else:
-            total_price += (ing["quantity"] / 1000) * ingOptions[0]["price"]
-
-    return total_price
-
-
 def priceCaculationHandler(data):
     if data["body"] == "":
         raise RequiredParametersNotAvialble("Id is required for this operation")
 
     id = int(data["body"]["meal_id"])
     meal = getMeal(id)
-    price = priceCalulator(meal, data["body"])
+    price = priceCalulator(database, meal, data["body"])
     ans = {"price": price}
+    body = json.dumps(ans, indent=2) + "\n"
+    result = (len(body), body)
+    return result
+
+
+def getRandomOptionsWithinBudget(budget, meal):
+    currentCost = calculateMinOfMeal(database=database, meal=meal)
+    options = {}
+    for ing in meal["ingredients"]:
+        costs = calculateCostsOfIngredient(ing, database)
+        min_ing_cost = calculateIngredientMinCost(ing, database)
+        new_config = random.choice(costs)
+        if (currentCost - min_ing_cost[0] + new_config[0]) < budget:
+            options[ing["name"].lower()] = new_config[1]
+            currentCost = currentCost - min_ing_cost[0] + new_config[0]
+        else:
+            options[ing["name"].lower()] = min_ing_cost[1]
+    return options
+
+
+def randomHandler(data):
+    ans = {}
+    if data["body"] == "":
+        is_finished = False
+        while not is_finished:
+            try:
+                meal = random.choice(database["meals"])
+                options = {}
+                ingredientsQuality = []
+                for ing in meal["ingredients"]:
+                    ingQuality = random.choice(["high", "low", "medium"])
+                    options[ing["name"].lower()] = ingQuality
+                    ingredientsQuality.append(
+                        {"name": ing["name"], "quality": ingQuality}
+                    )
+
+                price = priceCalulator(database, meal, options)
+                ans["id"] = meal["id"]
+                ans["name"] = meal["name"]
+                ans["price"] = price
+                ans["quality_score"] = qualityCalculator(meal, options)
+                ans["ingredients"] = ingredientsQuality
+            except:
+                continue
+            is_finished = True
+    else:
+        budget = float(data["body"]["budget"])
+        allowedMeals = allowedInBudgetMealsIds(budget, database)
+        meal_id = random.choice(allowedMeals)
+        meal = getMeal(meal_id)
+        options = getRandomOptionsWithinBudget(budget, meal)
+        price = priceCalulator(database, meal, options)
+        ans["id"] = meal["id"]
+        ans["name"] = meal["name"]
+        ans["price"] = price
+        ans["quality_score"] = qualityCalculator(meal, options)
+
+        ans["ingredients"] = options
+
     body = json.dumps(ans, indent=2) + "\n"
     result = (len(body), body)
     return result
@@ -201,6 +220,7 @@ urlpatterns = {
     "/getMeal": getMealHandler,
     "/quality": qualityCaculationHandler,
     "/price": priceCaculationHandler,
+    "/random": randomHandler,
 }
 
 # parsing the requsts and returning the important data in a dictionary
@@ -264,37 +284,3 @@ while True:
     c_connection.sendall(response.encode())
     c_connection.close()
     print("***************************************************************")
-
-# Close socket
-server_socket.close()
-
-
-#############################################################################
-
-# from http.server import *
-# class RequestHandler(BaseHTTPRequestHandler):
-#     def do_GET(self):
-#         self.send_response(200)
-#         self.send_header('content-type', 'text/html')
-#         self.end_headers()
-#         output = ""
-#         output += "<html><body>"
-#         output += "<h1> Text Analyzer </h1>"
-
-#         output += '<form method="POST" enctype="multipart/form-data" action="/analyze/result">'
-#         output += '<label for="fname">Text: </label>'
-#         output += '<input name="task" type="text" placeholder="Enter text" size="100">'
-#         output += '</br>'
-#         output += '<input type="submit" value="Analyze">'
-#         output += '</form>'
-#         output += "</body></html>"
-#         self.wfile.write(output.encode())
-
-
-# def run(server_class=HTTPServer, handler_class=RequestHandler):
-#     server_address = ("", 8000)
-#     httpd = server_class(server_address, handler_class)
-#     httpd.serve_forever()
-
-
-# run(HTTPServer, RequestHandler)
