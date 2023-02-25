@@ -2,7 +2,8 @@ import socket, sys, json, math
 from exceptions import *
 import random
 from func import *
-from func import *
+import datetime
+
 
 # Getting and parsing the data base
 file_path = "./data.json"
@@ -37,6 +38,9 @@ def listMealsHandler(requestData):
     """
     Handling list meals request
     """
+    if requestData["method"] != "GET":
+        raise WrongMethod("This API is only avilable for GET requests")
+
     options = requestData["params"]
     try:
         is_vegeterian = options["is_vegetarian"]
@@ -81,6 +85,9 @@ def getMealHandler(requestData):
     """
     Handling get meal request with its id requests
     """
+    if requestData["method"] != "GET":
+        raise WrongMethod("This API is only avilable for GET requests")
+
     if requestData["params"] == "":
         raise RequiredParametersNotAvialble(
             "Parameter called id is required for this operation"
@@ -90,7 +97,10 @@ def getMealHandler(requestData):
     except:
         raise InvalidParameterValue("The passed id value is invalid")
 
-    item = getMeal(database, id)
+    try:
+        item = getMeal(database, id)
+    except:
+        raise InvalidParameterValue("The passed id is not in the database")
     ingList = []
     for itemIng in item["ingredients"]:
         for ing in database["ingredients"]:
@@ -105,11 +115,23 @@ def qualityCaculationHandler(requestData):
     """
     This function calculates the quality of a meal
     """
+
+    if requestData["method"] != "POST":
+        raise WrongMethod("This API is only avilable for POST requests")
+
     if requestData["body"] == "" or "meal_id" not in requestData["body"]:
         raise RequiredParametersNotAvialble("meal_id is required for this operation")
 
-    id = int(requestData["body"]["meal_id"])
-    meal = getMeal(database=database, id=id)
+    try:
+        id = int(requestData["body"]["meal_id"])
+    except:
+        raise InvalidParameterValue("The passed id value is invalid")
+
+    try:
+        meal = getMeal(database, id)
+    except:
+        raise InvalidParameterValue("The passed id is not in the database")
+
     quality = qualityCalculator(meal, requestData["body"])
     ans = {"quality": quality}
     body = json.dumps(ans, indent=2) + "\n"
@@ -121,11 +143,22 @@ def priceCaculationHandler(requestData):
     """
     This function calculates the price of a meal
     """
+
+    if requestData["method"] != "POST":
+        raise WrongMethod("This API is only avilable for POST requests")
+
     if requestData["body"] == "" or "meal_id" not in requestData["body"]:
         raise RequiredParametersNotAvialble("meal_id is required for this operation")
 
-    id = int(requestData["body"]["meal_id"])
-    meal = getMeal(database, id)
+    try:
+        id = int(requestData["body"]["meal_id"])
+    except:
+        raise InvalidParameterValue("The passed id value is invalid")
+
+    try:
+        meal = getMeal(database, id)
+    except:
+        raise InvalidParameterValue("The passed id is not in the database")
     price = priceCalulator(database, meal, requestData["body"])
     ans = {"price": price}
     return responseFormatter(ans)
@@ -135,6 +168,10 @@ def randomHandler(requestData):
     """
     Picks a random meal for you with optional budget
     """
+
+    if requestData["method"] != "POST":
+        raise WrongMethod("This API is only avilable for POST requests")
+
     ans = {}
     if requestData["body"] == "" or "budget" not in requestData["body"]:
         is_finished = False
@@ -161,16 +198,23 @@ def randomHandler(requestData):
             is_finished = True
     else:
         budget = float(requestData["body"]["budget"])
-        allowedMeals = allowedInBudgetMealsIds(budget, database)
-        meal_id = random.choice(allowedMeals)
-        meal = getMeal(database, meal_id)
-        options = getRandomOptionsWithinBudget(database, budget, meal)
-        price = priceCalulator(database, meal, options)
-        ans["id"] = meal["id"]
-        ans["name"] = meal["name"]
-        ans["price"] = price
-        ans["quality_score"] = qualityCalculator(meal, options)
-        ans["ingredients"] = [{"name": op, "quality": options[op]} for op in options]
+        try:
+            allowedMeals = allowedInBudgetMealsIds(budget, database)
+            meal_id = random.choice(allowedMeals)
+            meal = getMeal(database, meal_id)
+            options = getRandomOptionsWithinBudget(database, budget, meal)
+            price = priceCalulator(database, meal, options)
+            ans["id"] = meal["id"]
+            ans["name"] = meal["name"]
+            ans["price"] = round(price, 2)
+            ans["quality_score"] = qualityCalculator(meal, options)
+            ans["ingredients"] = [
+                {"name": op, "quality": options[op]} for op in options
+            ]
+        except:
+            raise InvalidParameterValue(
+                "There is no meals with options for the given budgets"
+            )
 
     return responseFormatter(ans)
 
@@ -179,6 +223,10 @@ def searchHandler(requestData):
     """
     Handling search requests
     """
+
+    if requestData["method"] != "GET":
+        raise WrongMethod("This API is only avilable for GET requests")
+
     if requestData["params"] == "" or "query" not in requestData["params"]:
         raise RequiredParametersNotAvialble(
             "parameter query is required for this operation"
@@ -270,6 +318,10 @@ def findHighestQualityWithinBudget(meal, budget):
 
 
 def findHighestHandler(requestData):
+
+    if requestData["method"] != "POST":
+        raise WrongMethod("This API is only avilable for POST requests")
+
     if requestData["body"] == "" or "budget" not in requestData["body"]:
         raise RequiredParametersNotAvialble(
             "This API requires parameter called budget to based to it"
@@ -312,18 +364,22 @@ def findHighestHandler(requestData):
             quality = quality_temp
             price = cost_temp
     if meal == {}:
-        ans = {"Error": "There is no meal within the given budget"}
+        raise InvalidParameterValue("There is no meal within the given budget")
     else:
         ans = {}
         ans["id"] = meal["id"]
         ans["name"] = meal["name"]
-        ans["price"] = price
-        ans["quality_score"] = quality
+        ans["price"] = round(price, 2)
+        ans["quality_score"] = round(quality, 2)
         ans["ingredients"] = [{"name": op[0], "quality": op[1]} for op in options]
     return responseFormatter(ans)
 
 
 def findHighestOfMealHandler(requestData):
+
+    if requestData["method"] != "POST":
+        raise WrongMethod("This API is only avilable for POST requests")
+
     if (
         requestData["body"] == ""
         or "budget" not in requestData["body"]
@@ -332,25 +388,21 @@ def findHighestOfMealHandler(requestData):
         raise RequiredParametersNotAvialble(
             "This API requires parameters called budget and meal_id to based to it"
         )
-    print("omg")
     meal_id = int(requestData["body"]["meal_id"])
     budget = float(requestData["body"]["budget"])
     meal = getMeal(database, meal_id)
-    print("omg1")
     ans = {}
     if calculateMinOfMeal(database, meal) < budget:
-        print("omg2")
         cost, quality, options = findHighestQualityWithinBudget(meal, budget)
-        print("omg3")
         ans["id"] = meal["id"]
         ans["name"] = meal["name"]
-        ans["price"] = cost
-        ans["quality_score"] = quality
+        ans["price"] = round(cost, 2)
+        ans["quality_score"] = round(quality, 2)
         ans["ingredients"] = [{"name": op[0], "quality": op[1]} for op in options]
     else:
-        ans = {
-            "Error": "There is no configurations for this meal within the given budgets"
-        }
+        raise InvalidParameterValue(
+            "There is no configurations for this meal within the given budgets"
+        )
     return responseFormatter(ans)
 
 
@@ -369,14 +421,14 @@ urlpatterns = {
 # parsing the requsts and returning the important data in a dictionary
 def request_parser(request):
     result = {
-        "type": "",
+        "method": "",
         "path": "",
         "params": "",
         "body": "",
     }
 
     headers = request.split("\n\r\n")[0].split("\n")
-    result["type"] = headers[0].split()[0]
+    result["method"] = headers[0].split()[0]
     # Parsing path and parameters
     try:
         path_params = headers[0].split()[1].split("?")
@@ -422,9 +474,44 @@ while True:
         )
 
     except RequiredParametersNotAvialble as e:
-        response = f"HTTP/1.1 404 NOT FOUND\n\n{e.message}\n"
+        error = createError(e.message, 400, request_data)
+        response_content = responseFormatter(error)
+        response = (
+            f"HTTP/1.1 400 BAD REQUEST \nContent-Length: {response_content[0]}\n\n"
+            + response_content[1]
+        )
+
+    except MissingInDatabase as e:
+        error = createError(e.message, 400, request_data)
+        response_content = responseFormatter(error)
+        response = (
+            f"HTTP/1.1 400 BAD REQUEST \nContent-Length: {response_content[0]}\n\n"
+            + response_content[1]
+        )
+
+    except InvalidParameterValue as e:
+        error = createError(e.message, 400, request_data)
+        response_content = responseFormatter(error)
+        response = (
+            f"HTTP/1.1 400 BAD REQUEST \nContent-Length: {response_content[0]}\n\n"
+            + response_content[1]
+        )
+
+    except WrongMethod as e:
+        error = createError(e.message, 400, request_data)
+        response_content = responseFormatter(error)
+        response = (
+            f"HTTP/1.1 400 BAD REQUEST \nContent-Length: {response_content[0]}\n\n"
+            + response_content[1]
+        )
+
     except:
-        response = "HTTP/1.1 404 NOT FOUND\n\nFile Not Found\n"
+        error = createError("Not Found", 404, request_data)
+        response_content = responseFormatter(error)
+        response = (
+            f"HTTP/1.1 404 NOT FOUND \nContent-Length: {response_content[0]}\n\n"
+            + response_content[1]
+        )
 
     c_connection.sendall(response.encode())
     c_connection.close()

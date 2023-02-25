@@ -1,6 +1,6 @@
 from exceptions import *
 import json, random
-
+import datetime
 
 # This function transforms the python dictionary to json
 def responseFormatter(raw_response):
@@ -189,3 +189,14 @@ def getRandomOptionsWithinBudget(database, budget, meal):
         else:
             options[ing["name"].lower()] = min_ing_cost[1]
     return options
+
+
+def createError(message, errorCode, request_data):
+    error = {
+        "time": str(datetime.datetime.now()),
+        "status": errorCode,
+        "error": message,
+        "path": request_data["path"],
+        "method": request_data["method"],
+    }
+    return error
