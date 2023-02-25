@@ -138,17 +138,20 @@ def qualityCaculationHandler(requestData):
     return result
 
 
-def priceCaculationHandler(data):
-    if data["body"] == "":
-        raise RequiredParametersNotAvialble("Id is required for this operation")
+def priceCaculationHandler(requestData):
+    """
+    This function calculates the price of a meal
+    """
+    if requestData["body"] == "" or "meal_id" not in requestData["body"]:
+        raise RequiredParametersNotAvialble("meal_id is required for this operation")
 
-    id = int(data["body"]["meal_id"])
-    meal = getMeal(id)
-    price = priceCalulator(database, meal, data["body"])
+    id = int(requestData["body"]["meal_id"])
+    meal = getMeal(database, id)
+    price = priceCalulator(database, meal, requestData["body"])
     ans = {"price": price}
-    body = json.dumps(ans, indent=2) + "\n"
-    result = (len(body), body)
-    return result
+    return responseFormatter(ans)
+
+
 
 
 def getRandomOptionsWithinBudget(budget, meal):
