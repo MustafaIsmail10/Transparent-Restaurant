@@ -1,10 +1,11 @@
-import socket, sys, json
+import socket, sys, json, math
 from exceptions import *
 import random
-from calculate import *
+from computations import *
+from func import *
 
 # Getting and parsing the data base
-file_path = "data.json"
+file_path = "./data.json"
 if len(sys.argv) == 2:
     file_path = sys.argv[1]
 
@@ -32,10 +33,11 @@ server.listen(1)
 print("Listening on port %s ..." % PORT)
 
 
-def listMealsHandler(data):
-    options = data["params"]
-
-    is_vegan = False
+def listMealsHandler(requestData):
+    """
+    Handling list meals request
+    """
+    options = requestData["params"]
     try:
         is_vegeterian = options["is_vegetarian"]
     except:
@@ -93,29 +95,23 @@ def listMealsHandler(data):
             item["ingredients"] = [ing["name"] for ing in meal["ingredients"]]
             ans.append(item)
 
-    body = json.dumps(ans, indent=2) + "\n"
-    result = (len(body), body)
-    return result
+    return responseFormatter(ans)
 
 
-def getMeal(id):
-    item = [meal for meal in database["meals"] if meal["id"] == id]
-    if item == []:
-        raise RequiredParametersNotAvialble(
-            "The Passed id invalid. Please pass an id with a proper id"
-        )
-    return item[0]
-
-
-def getMealHandler(data):
-    if data["params"] == "":
+def getMealHandler(requestData):
+    """
+    Handling get meal request with its id requests
+    """
+    if requestData["params"] == "":
         raise RequiredParametersNotAvialble(
             "Parameter called id is required for this operation"
         )
+    try:
+        id = int(requestData["params"]["id"])
+    except:
+        raise InvalidParameterValue("The passed id value is invalid")
 
-    id = int(data["params"]["id"])
-    item = getMeal(id)
-
+    item = getMeal(database, id)
     ingList = []
     for itemIng in item["ingredients"]:
         for ing in database["ingredients"]:
@@ -123,10 +119,7 @@ def getMealHandler(data):
                 ingList.append(ing)
                 break
     item["ingredients"] = ingList
-
-    body = json.dumps(item, indent=2) + "\n"
-    result = (len(body), body)
-    return result
+    return responseFormatter(item)
 
 
 def qualityCaculationHandler(data):
@@ -214,7 +207,7 @@ def randomHandler(data):
     return result
 
 
-def search(data):
+def searchHandler(data):
     if data["params"] == "":
         raise Exception()
     ans = []
@@ -236,6 +229,116 @@ def search(data):
         raise Exception
 
 
+def calculateIngredientNewUpgrade(meal, currentUpgrade):
+    if currentUpgrade[1] == "high":
+        raise Exception()
+
+    mealIng = [ing for ing in meal["ingredients"] if currentUpgrade[0] == ing["name"]][
+        0
+    ]
+    costsOfIng = getCostsOfIngredient(database=database, ing=mealIng)
+    newQuality = currentUpgrade[1]
+    newCost = currentUpgrade[2]
+    if currentUpgrade[1] == "medium":
+        newQuality = "high"
+        newCost = math.inf
+    elif currentUpgrade[1] == "low":
+        newQuality = "medium"
+        newCost = costsOfIng[0][0] - costsOfIng[1][0]
+    else:
+        newQuality = "low"
+        newCost = costsOfIng[2][0]
+
+    return (currentUpgrade[0], newQuality, newCost)
+
+
+def calculateUpgradesCosts(meal, options):
+    upgradesCosts = []
+    for ing in meal["ingredients"]:
+        option = ""
+        if options[ing["name"].lower()] == "medium":
+            option = "low"
+        elif options[ing["name"].lower()] == "high":
+            option = "medium"
+
+        upgradesCosts.append(
+            calculateIngredientNewUpgrade(meal, (ing["name"], option, 0))
+        )
+    return upgradesCosts
+
+
+def findHighestQualityWithinBudget(meal, budget):
+    """
+    This function finds the highest quality of a meal within a specific budget and returns a tuple (quality, options)
+    """
+    currentCost, options = getMinCostAndOptionsOfMeal(database=database, meal=meal)
+    currentQuality = qualityCalculator(meal=meal, body=options)
+    numOfIngredients = len(meal["ingredients"])
+    qualityIncreaseAmount = 10 / numOfIngredients
+    # [("Ingredient Name", "current quality", <Upgrade cost>)]
+    upgradesCosts = calculateUpgradesCosts(meal, options)
+    while True:
+        print(qualityIncreaseAmount, currentCost, currentQuality, upgradesCosts)
+        print("******************************************")
+        minUpgrade = 0
+        for num in range(numOfIngredients):
+            if (
+                upgradesCosts[num][1] != "high"
+                and upgradesCosts[num][2] < upgradesCosts[minUpgrade][2]
+            ):
+                minUpgrade = num
+
+        tempCost = currentCost + upgradesCosts[minUpgrade][2]
+        if tempCost < budget:
+            currentCost = tempCost
+            upgradesCosts[minUpgrade] = calculateIngredientNewUpgrade(
+                meal, upgradesCosts[minUpgrade]
+            )
+            currentQuality += qualityIncreaseAmount
+        else:
+            break
+
+    options = [(up[0], up[1]) for up in upgradesCosts]
+    print("######################################################\n\n\n")
+    return (currentCost, currentQuality, options)
+
+
+def findHighestHandler(data):
+    if data["body"] == "":
+        raise Exception()
+    if "budget" not in data["body"]:
+        raise Exception()
+
+    budget = float(data["body"]["budget"])
+    allowedMealsIds = allowedInBudgetMealsIds(budget, database)
+    quality = 0
+    meal = None
+    options = None
+    price = 0
+    for meal_id in allowedMealsIds:
+        meal_temp = getMeal(meal_id)
+        cost_temp, quality_temp, options_temp = findHighestQualityWithinBudget(
+            meal_temp, budget
+        )
+        if quality_temp > quality:
+            meal = meal_temp
+            options = options_temp
+            quality = quality_temp
+            price = cost_temp
+
+    ans = {}
+    ans["id"] = meal["id"]
+    ans["name"] = meal["name"]
+    ans["price"] = price
+    ans["quality_score"] = quality
+    ans["ingredients"] = [{"name": op[0], "quality": op[1]} for op in options]
+    return responseFormatter(ans)
+
+
+def findHighestOfMealHandler(data):
+    pass
+
+
 # Avilable url patterns
 urlpatterns = {
     "/listMeals": listMealsHandler,
@@ -243,7 +346,9 @@ urlpatterns = {
     "/quality": qualityCaculationHandler,
     "/price": priceCaculationHandler,
     "/random": randomHandler,
-    "/search": search,
+    "/search": searchHandler,
+    "/findHighest": findHighestHandler,
+    "/findHighestOfMeal": findHighestOfMealHandler,
 }
 
 # parsing the requsts and returning the important data in a dictionary
@@ -283,6 +388,8 @@ def request_parser(request):
 
     return result
 
+
+# Testing code
 
 while True:
     # Wait for requests and parsing them
