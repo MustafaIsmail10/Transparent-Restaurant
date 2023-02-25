@@ -122,13 +122,16 @@ def getMealHandler(requestData):
     return responseFormatter(item)
 
 
-def qualityCaculationHandler(data):
-    if data["body"] == "":
-        raise RequiredParametersNotAvialble("Id is required for this operation")
+def qualityCaculationHandler(requestData):
+    """
+    This function calculates the quality of a meal
+    """
+    if requestData["body"] == "" or "meal_id" not in requestData["body"]:
+        raise RequiredParametersNotAvialble("meal_id is required for this operation")
 
-    id = int(data["body"]["meal_id"])
-    meal = getMeal(id)
-    quality = qualityCalculator(meal, data["body"])
+    id = int(requestData["body"]["meal_id"])
+    meal = getMeal(database=database, id=id)
+    quality = qualityCalculator(meal, requestData["body"])
     ans = {"quality": quality}
     body = json.dumps(ans, indent=2) + "\n"
     result = (len(body), body)
@@ -370,7 +373,7 @@ def request_parser(request):
         params_dic = {}
         for param in params:
             param_lst = param.split("=")
-            params_dic[param_lst[0]] = param_lst[1]
+            params_dic[param_lst[0].lower()] = param_lst[1]
         result["params"] = params_dic
     except:
         result["path"] = headers[0].split()[1]
@@ -381,7 +384,7 @@ def request_parser(request):
         body_dic = {}
         for i in body:
             item = i.split("=")
-            body_dic[item[0]] = item[1]
+            body_dic[item[0].lower()] = item[1]
         result["body"] = body_dic
     except:
         result["body"] = ""
