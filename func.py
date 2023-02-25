@@ -1,5 +1,5 @@
 from exceptions import *
-import json
+import json, random
 
 
 # This function transforms the python dictionary to json
@@ -171,3 +171,21 @@ def getMinCostAndOptionsOfMeal(database, meal):
         minCost += temp[0]
         options[ing["name"].lower()] = temp[1]
     return (minCost, options)
+
+
+def getRandomOptionsWithinBudget(database, budget, meal):
+    """
+    choose random options for a meal within budget
+    """
+    currentCost = calculateMinOfMeal(database=database, meal=meal)
+    options = {}
+    for ing in meal["ingredients"]:
+        costs = getCostsOfIngredient(database, ing)
+        min_ing_cost = getIngredientMinCost(database, ing)
+        new_config = random.choice(costs)
+        if (currentCost - min_ing_cost[0] + new_config[0]) < budget:
+            options[ing["name"].lower()] = new_config[1]
+            currentCost = currentCost - min_ing_cost[0] + new_config[0]
+        else:
+            options[ing["name"].lower()] = min_ing_cost[1]
+    return options

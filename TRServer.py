@@ -131,24 +131,6 @@ def priceCaculationHandler(requestData):
     return responseFormatter(ans)
 
 
-def getRandomOptionsWithinBudget(budget, meal):
-    """
-    choose random options for a meal within budget
-    """
-    currentCost = calculateMinOfMeal(database=database, meal=meal)
-    options = {}
-    for ing in meal["ingredients"]:
-        costs = getCostsOfIngredient(database, ing)
-        min_ing_cost = getIngredientMinCost(database, ing)
-        new_config = random.choice(costs)
-        if (currentCost - min_ing_cost[0] + new_config[0]) < budget:
-            options[ing["name"].lower()] = new_config[1]
-            currentCost = currentCost - min_ing_cost[0] + new_config[0]
-        else:
-            options[ing["name"].lower()] = min_ing_cost[1]
-    return options
-
-
 def randomHandler(requestData):
     """
     Picks a random meal for you with optional budget
@@ -182,7 +164,7 @@ def randomHandler(requestData):
         allowedMeals = allowedInBudgetMealsIds(budget, database)
         meal_id = random.choice(allowedMeals)
         meal = getMeal(database, meal_id)
-        options = getRandomOptionsWithinBudget(budget, meal)
+        options = getRandomOptionsWithinBudget(database, budget, meal)
         price = priceCalulator(database, meal, options)
         ans["id"] = meal["id"]
         ans["name"] = meal["name"]
@@ -193,26 +175,27 @@ def randomHandler(requestData):
     return responseFormatter(ans)
 
 
-def searchHandler(data):
-    if data["params"] == "":
-        raise Exception()
+def searchHandler(requestData):
+    """
+    Handling search requests
+    """
+    if requestData["params"] == "" or "query" not in requestData["params"]:
+        raise RequiredParametersNotAvialble(
+            "parameter query is required for this operation"
+        )
     ans = []
-    if "query" in data["params"]:
-        search_term = data["params"]["query"].lower()
-        for meal in database["meals"]:
-            if search_term in meal["name"].lower():
-                search_result = {
-                    "id": meal["id"],
-                    "name": meal["name"],
-                    "ingredients": [ing["name"] for ing in meal["ingredients"]],
-                }
-                ans.append(search_result)
 
-        body = json.dumps(ans, indent=2) + "\n"
-        result = (len(body), body)
-        return result
-    else:
-        raise Exception
+    search_term = requestData["params"]["query"].lower()
+    for meal in database["meals"]:
+        if search_term in meal["name"].lower():
+            search_result = {
+                "id": meal["id"],
+                "name": meal["name"],
+                "ingredients": [ing["name"] for ing in meal["ingredients"]],
+            }
+            ans.append(search_result)
+
+    return responseFormatter(ans)
 
 
 def calculateIngredientNewUpgrade(meal, currentUpgrade):
