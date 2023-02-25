@@ -1,7 +1,7 @@
 import socket, sys, json, math
 from exceptions import *
 import random
-from computations import *
+from func import *
 from func import *
 
 # Getting and parsing the data base
@@ -56,44 +56,23 @@ def listMealsHandler(requestData):
             item["name"] = meal["name"]
             item["ingredients"] = [ing["name"] for ing in meal["ingredients"]]
             ans.append(item)
+
     elif is_vegeterian:
-        vegeterian_ingredients = [
-            ing["name"]
-            for ing in database["ingredients"]
-            if "vegetarian" in ing["groups"]
-        ]
         for meal in database["meals"]:
-            is_vegeterian_meal = True
-            for ing in meal["ingredients"]:
-                if ing["name"] not in vegeterian_ingredients:
-                    is_vegeterian_meal = False
-                    break
-            if not is_vegeterian_meal:
-                continue
-
-            item = {}
-            item["id"] = meal["id"]
-            item["name"] = meal["name"]
-            item["ingredients"] = [ing["name"] for ing in meal["ingredients"]]
-            ans.append(item)
+            if isVegetarian(database, meal):
+                item = {}
+                item["id"] = meal["id"]
+                item["name"] = meal["name"]
+                item["ingredients"] = [ing["name"] for ing in meal["ingredients"]]
+                ans.append(item)
     else:
-        vegan_ingredients = [
-            ing["name"] for ing in database["ingredients"] if "vegan" in ing["groups"]
-        ]
         for meal in database["meals"]:
-            is_vegan_meal = True
-            for ing in meal["ingredients"]:
-                if ing["name"] not in vegan_ingredients:
-                    is_vegan_meal = False
-                    break
-            if not is_vegan_meal:
-                continue
-
-            item = {}
-            item["id"] = meal["id"]
-            item["name"] = meal["name"]
-            item["ingredients"] = [ing["name"] for ing in meal["ingredients"]]
-            ans.append(item)
+            if isVegan(database, meal):
+                item = {}
+                item["id"] = meal["id"]
+                item["name"] = meal["name"]
+                item["ingredients"] = [ing["name"] for ing in meal["ingredients"]]
+                ans.append(item)
 
     return responseFormatter(ans)
 
@@ -152,14 +131,15 @@ def priceCaculationHandler(requestData):
     return responseFormatter(ans)
 
 
-
-
 def getRandomOptionsWithinBudget(budget, meal):
+    """
+    choose random options for a meal within budget
+    """
     currentCost = calculateMinOfMeal(database=database, meal=meal)
     options = {}
     for ing in meal["ingredients"]:
-        costs = calculateCostsOfIngredient(ing, database)
-        min_ing_cost = calculateIngredientMinCost(ing, database)
+        costs = getCostsOfIngredient(database, ing)
+        min_ing_cost = getIngredientMinCost(database, ing)
         new_config = random.choice(costs)
         if (currentCost - min_ing_cost[0] + new_config[0]) < budget:
             options[ing["name"].lower()] = new_config[1]
@@ -169,9 +149,12 @@ def getRandomOptionsWithinBudget(budget, meal):
     return options
 
 
-def randomHandler(data):
+def randomHandler(requestData):
+    """
+    Picks a random meal for you with optional budget
+    """
     ans = {}
-    if data["body"] == "":
+    if requestData["body"] == "" or "budget" not in requestData["body"]:
         is_finished = False
         while not is_finished:
             try:
@@ -195,22 +178,19 @@ def randomHandler(data):
                 continue
             is_finished = True
     else:
-        budget = float(data["body"]["budget"])
+        budget = float(requestData["body"]["budget"])
         allowedMeals = allowedInBudgetMealsIds(budget, database)
         meal_id = random.choice(allowedMeals)
-        meal = getMeal(meal_id)
+        meal = getMeal(database, meal_id)
         options = getRandomOptionsWithinBudget(budget, meal)
         price = priceCalulator(database, meal, options)
         ans["id"] = meal["id"]
         ans["name"] = meal["name"]
         ans["price"] = price
         ans["quality_score"] = qualityCalculator(meal, options)
-
         ans["ingredients"] = [{"name": op, "quality": options[op]} for op in options]
 
-    body = json.dumps(ans, indent=2) + "\n"
-    result = (len(body), body)
-    return result
+    return responseFormatter(ans)
 
 
 def searchHandler(data):
