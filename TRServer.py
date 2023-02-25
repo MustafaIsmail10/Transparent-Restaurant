@@ -238,7 +238,7 @@ def calculateUpgradesCosts(meal, options):
 
 def findHighestQualityWithinBudget(meal, budget):
     """
-    This function finds the highest quality of a meal within a specific budget and returns a tuple (quality, options)
+    This function finds the highest quality of a meal within a specific budget and returns a tuple (price ,quality, options)
     """
     currentCost, options = getMinCostAndOptionsOfMeal(database=database, meal=meal)
     currentQuality = qualityCalculator(meal=meal, body=options)
@@ -323,8 +323,35 @@ def findHighestHandler(requestData):
     return responseFormatter(ans)
 
 
-def findHighestOfMealHandler(data):
-    pass
+def findHighestOfMealHandler(requestData):
+    if (
+        requestData["body"] == ""
+        or "budget" not in requestData["body"]
+        or "meal_id" not in requestData["body"]
+    ):
+        raise RequiredParametersNotAvialble(
+            "This API requires parameters called budget and meal_id to based to it"
+        )
+    print("omg")
+    meal_id = int(requestData["body"]["meal_id"])
+    budget = float(requestData["body"]["budget"])
+    meal = getMeal(database, meal_id)
+    print("omg1")
+    ans = {}
+    if calculateMinOfMeal(database, meal) < budget:
+        print("omg2")
+        cost, quality, options = findHighestQualityWithinBudget(meal, budget)
+        print("omg3")
+        ans["id"] = meal["id"]
+        ans["name"] = meal["name"]
+        ans["price"] = cost
+        ans["quality_score"] = quality
+        ans["ingredients"] = [{"name": op[0], "quality": op[1]} for op in options]
+    else:
+        ans = {
+            "Error": "There is no configurations for this meal within the given budgets"
+        }
+    return responseFormatter(ans)
 
 
 # Avilable url patterns
