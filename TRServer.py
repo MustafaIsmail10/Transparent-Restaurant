@@ -247,8 +247,6 @@ def findHighestQualityWithinBudget(meal, budget):
     # [("Ingredient Name", "current quality", <Upgrade cost>)]
     upgradesCosts = calculateUpgradesCosts(meal, options)
     while True:
-        print(qualityIncreaseAmount, currentCost, currentQuality, upgradesCosts)
-        print("******************************************")
         minUpgrade = 0
         for num in range(numOfIngredients):
             if (
@@ -268,24 +266,43 @@ def findHighestQualityWithinBudget(meal, budget):
             break
 
     options = [(up[0], up[1]) for up in upgradesCosts]
-    print("######################################################\n\n\n")
     return (currentCost, currentQuality, options)
 
 
-def findHighestHandler(data):
-    if data["body"] == "":
-        raise Exception()
-    if "budget" not in data["body"]:
-        raise Exception()
+def findHighestHandler(requestData):
+    if requestData["body"] == "" or "budget" not in requestData["body"]:
+        raise RequiredParametersNotAvialble(
+            "This API requires parameter called budget to based to it"
+        )
 
-    budget = float(data["body"]["budget"])
+    print(requestData["body"])
+    budget = float(requestData["body"]["budget"])
     allowedMealsIds = allowedInBudgetMealsIds(budget, database)
+    allowedMeals = []
+
+    if (
+        "is_vegetarian" in requestData["body"]
+        and requestData["body"]["is_vegetarian"] == "true"
+    ):
+        for meal_id in allowedMealsIds:
+            meal_temp = getMeal(database, meal_id)
+            if isVegetarian(database, meal_temp):
+                allowedMeals.append(meal_temp)
+    elif (
+        "is_vegan" in requestData["body"] and requestData["body"]["is_vegan"] == "true"
+    ):
+        for meal_id in allowedMealsIds:
+            meal_temp = getMeal(database, meal_id)
+            if isVegan(database, meal_temp):
+                allowedMeals.append(meal_temp)
+    else:
+        allowedMeals = [getMeal(database, meal_id) for meal_id in allowedMealsIds]
+
     quality = 0
-    meal = None
-    options = None
+    meal = {}
+    options = {}
     price = 0
-    for meal_id in allowedMealsIds:
-        meal_temp = getMeal(meal_id)
+    for meal_temp in allowedMeals:
         cost_temp, quality_temp, options_temp = findHighestQualityWithinBudget(
             meal_temp, budget
         )
@@ -294,13 +311,15 @@ def findHighestHandler(data):
             options = options_temp
             quality = quality_temp
             price = cost_temp
-
-    ans = {}
-    ans["id"] = meal["id"]
-    ans["name"] = meal["name"]
-    ans["price"] = price
-    ans["quality_score"] = quality
-    ans["ingredients"] = [{"name": op[0], "quality": op[1]} for op in options]
+    if meal == {}:
+        ans = {"Error": "There is no meal within the given budget"}
+    else:
+        ans = {}
+        ans["id"] = meal["id"]
+        ans["name"] = meal["name"]
+        ans["price"] = price
+        ans["quality_score"] = quality
+        ans["ingredients"] = [{"name": op[0], "quality": op[1]} for op in options]
     return responseFormatter(ans)
 
 
